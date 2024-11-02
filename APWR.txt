@@ -1,0 +1,126 @@
+#include <WiFi.h>
+#include <ESPAsyncWebServer.h>
+#include <Servo.h>
+
+// Pin Definitions
+const int moisturePin = A0; // Soil moisture sensor pin
+const int relayPin = D5;     // Relay pin for water pump
+const int motorA_IN1 = D2;   // Motor A IN1
+const int motorA_IN2 = D4;   // Motor A IN2
+const int motorB_IN3 = D16;  // Motor B IN3
+const int motorB_IN4 = D17;  // Motor B IN4
+const int servoPin = D13;    // Servo pin
+
+// WiFi Credentials
+const char* ssid = "YOUR_SSID";
+const char* password = "YOUR_PASSWORD";
+
+// Create server on port 80
+AsyncWebServer server(80);
+Servo myServo;
+
+// Moisture threshold
+const int moistureThreshold = 500; // Adjust as necessary
+
+void setup() {
+    // Initialize pins
+    pinMode(relayPin, OUTPUT);
+    pinMode(motorA_IN1, OUTPUT);
+    pinMode(motorA_IN2, OUTPUT);
+    pinMode(motorB_IN3, OUTPUT);
+    pinMode(motorB_IN4, OUTPUT);
+    
+    // Start Serial for debugging
+    Serial.begin(115200);
+    
+    // Initialize Servo
+    myServo.attach(servoPin);
+    
+    // Connect to WiFi
+    WiFi.begin(ssid, password);
+    while (WiFi.status() != WL_CONNECTED) {
+        delay(500);
+        Serial.print(".");
+    }
+    Serial.println("Connected to WiFi");
+
+    // Setup web server routes
+    server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){
+        String html = "<h1>Plant Watering Robot</h1>";
+        html += "<button onclick=\"fetch('/water')\">Water</button><br>";
+        html += "<button onclick=\"fetch('/forward')\">Forward</button><br>";
+        html += "<button onclick=\"fetch('/backward')\">Backward</button><br>";
+        html += "<button onclick=\"fetch('/left')\">Left</button><br>";
+        html += "<button onclick=\"fetch('/right')\">Right</button><br>";
+        request->send(200, "text/html", html);
+    });
+
+    server.on("/water", HTTP_GET, [](AsyncWebServerRequest *request) {
+        digitalWrite(relayPin, HIGH); // Activate pump
+        delay(5000); // Water for 5 seconds
+        digitalWrite(relayPin, LOW); // Deactivate pump
+        request->send(200, "text/plain", "Watering Done");
+    });
+
+    server.on("/forward", HTTP_GET, [](AsyncWebServerRequest *request) {
+        moveForward();
+        request->send(200, "text/plain", "Moving Forward");
+    });
+
+    server.on("/backward", HTTP_GET, [](AsyncWebServerRequest *request) {
+        moveBackward();
+        request->send(200, "text/plain", "Moving Backward");
+    });
+
+    server.on("/left", HTTP_GET, [](AsyncWebServerRequest *request) {
+        turnLeft();
+        request->send(200, "text/plain", "Turning Left");
+    });
+
+    server.on("/right", HTTP_GET, [](AsyncWebServerRequest *request) {
+        turnRight();
+        request->send(200, "text/plain", "Turning Right");
+    });
+
+    server.begin();
+}
+
+void loop() {
+    int moistureValue = analogRead(moisturePin);
+    Serial.print("Soil Moisture: ");
+    Serial.println(moistureValue);
+    if (moistureValue < moistureThreshold) {
+        digitalWrite(relayPin, HIGH); // Activate pump
+        delay(5000); // Water for 5 seconds
+        digitalWrite(relayPin, LOW); // Deactivate pump
+    }
+    delay(10000); // Check every 10 seconds
+}
+
+void moveForward() {
+    digitalWrite(motorA_IN1, HIGH);
+    digitalWrite(motorA_IN2, LOW);
+    digitalWrite(motorB_IN3, HIGH);
+    digitalWrite(motorB_IN4, LOW);
+}
+
+void moveBackward() {
+    digitalWrite(motorA_IN1, LOW);
+    digitalWrite(motorA_IN2, HIGH);
+    digitalWrite(motorB_IN3, LOW);
+    digitalWrite(motorB_IN4, HIGH);
+}
+
+void turnLeft() {
+    digitalWrite(motorA_IN1, LOW);
+    digitalWrite(motorA_IN2, HIGH);
+    digitalWrite(motorB_IN3, HIGH);
+    digitalWrite(motorB_IN4, LOW);
+}
+
+void turnRight() {
+    digitalWrite(motorA_IN1, HIGH);
+    digitalWrite(motorA_IN2, LOW);
+    digitalWrite(motorB_IN3, LOW);
+    digitalWrite(motorB_IN4, HIGH);
+}
